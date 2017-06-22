@@ -2,13 +2,13 @@
 import sys
 import itertools
 import numpy as np
-from cpy.cp import CP
-from cpy.nonconformity_measures import knn
+from nonconformist.cp import TcpClassifier
+from nonconformist.nc import BaseScorer
 
 import ml_train
 
 
-def cp_hmm(xn, X, H, e, init_prob=None, tran_prob=None, ncm='default', smooth=True):
+def cp_hmm(xn, X, H, e, ncm, smooth=True, init_prob=None, tran_prob=None):
     """CP-HMM prediction region.
 
     Uses CP-HMM to output a prediction region (i.e.: a set
@@ -25,6 +25,12 @@ def cp_hmm(xn, X, H, e, init_prob=None, tran_prob=None, ncm='default', smooth=Tr
         Two dimensional array. Each row is a hidden sequence.
     e : float in [0,1]
         Significance level.
+    ncm : nonconformist.BaseScorer
+        Nonconformity measure to use.
+    smooth : bool
+        If True, smooth CP is used, which achieves exact validity.
+        Otherwise, standard CP is used, guaranteeing error smaller or
+        equal to e.
     init_prob : dict (Default: None)
         The item corresponding to the i-th key is the
         probability of the hidden process to start in the
@@ -36,15 +42,10 @@ def cp_hmm(xn, X, H, e, init_prob=None, tran_prob=None, ncm='default', smooth=Tr
         indicates the probability of transitioning from the
         i-th to the j-th state.
         If default (=None), it is estimated from data.
-    ncm : string
-        Non conformity measure. The default is k-NN non conformity
-        measure with k=1.
     """
     # Reduce significance level as required.
     e /= float(len(xn))
     # Non conformity measure.
-    if ncm == 'default':
-        ncm = knn.KNN(k=1)
     # Convert sequences to training set.
     # Find candidates.
     candidates = cp_hmm_candidates(xn, X, H, e, ncm, smooth)
@@ -101,6 +102,7 @@ def gen_paths(candidates, trans_prob, init_prob):
     paths = list(itertools.product(*candidates))
     scores = []
     for p in paths:
+        p = map(int, p)         # So we can use them as indexes
         s = init_prob[p[0]]
         for i in range(len(p)-1):
             s *= trans_prob[(p[i],p[i+1])]
@@ -173,33 +175,42 @@ def sequences_to_examples(X, H):
     H : numpy array
         Two dimensional array. Each row is an hidden sequence.
     """
-    Xt = []
-    Ht = []
-    for i in range(len(X)):
-        Xt.append(X[i])
-        Ht.append(H[i])
-
-    return Xt, Ht
+    return X.flatten().reshape(-1, 1), H.flatten()
 
 def cp_hmm_candidates(xn, X, H, e, ncm, smooth=True):
-    """Uses CP-HMM to predict, for each element of the observed
-    sequence, a list of candidate states.
-    Thanks to CP's validity guarantee, the true hidden
-    states is within the list of candidates with probability
-    1-e.
-    Accepts training examples X and H, where X is a list of
-    observed sequences, H is a list of respective hidden
-    sequences.
-    e is the significance level, and represents the error we
-    can afford to make.
+    """Uses CP-HMM to predict, for each element of the observed sequence, a
+    list of candidate states.  Thanks to CP's validity guarantee, the true
+    hidden states is within the list of candidates with probability 1-e.
+    Accepts training examples X and H, where X is a list of observed sequences,
+    H is a list of respective hidden sequences.  e is the significance level,
+    and represents the error we can afford to make.
+
+    Parameters
+    ----------
+    xn : list
+        Observed sequence.
+    X : numpy array
+        Two dimensional array. Each row is an observed sequence.
+    H : numpy array
+        Two dimensional array. Each row is a hidden sequence.
+    e : float in [0,1]
+        Significance level.
+    ncm : nonconformist.BaseScorer
+        Nonconformity measure to use.
+    smooth : bool
+        If True, smooth CP is used, which achieves exact validity.
+        Otherwise, standard CP is used, guaranteeing error smaller or
+        equal to e.
     """
     Xt, Ht = sequences_to_examples(X, H)
     # For each element of the observed sequence xn
     # determine a set of candidate states.
-    cp = CP(ncm, smooth)
+    cp = TcpClassifier(ncm, smoothing=smooth)
     hn_candidates = []
     for x in xn:
-        candidates = cp.predict_labelled(x, Xt, Ht, e)
+        cp.fit(Xt, Ht)
+        candidates_bool = cp.predict(x.reshape(-1, 1), e)[0]
+        candidates = cp.classes[candidates_bool]
         hn_candidates.append(candidates)
 
     return hn_candidates
