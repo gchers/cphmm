@@ -112,71 +112,6 @@ def gen_paths(candidates, trans_prob, init_prob):
 
     return paths_sorted
 
-#def cp_hmm_priors(H, e, ncm, **ncm_args):
-#    """Produces the priors for the CP-HMM.
-#
-#    Parameters
-#    ----------
-#    H : numpy array
-#        Two dimensional array. Each row is an hidden sequence.
-#    e : float
-#        Significance level in [0,1].
-#    """
-#    ns = len(np.unique(H))
-#    Htrain = np.array([[h[0]] for h in H])
-#    priors = np.array([.0]*ns)
-#    for i in range(ns):
-#        if CP.predict_unlabelled(i, Htrain, e, ncm, **ncm_args):
-#            priors[i] = 1.
-#    
-#    return priors
-#
-#def cp_hmm_transition_matrix(H, e, ncm, **ncm_args):
-#    """Produces the transition matrix for the CP-HMM.
-#
-#    Parameters
-#    ----------
-#    H : numpy array
-#        Two dimensional array. Each row is an hidden sequence.
-#    e : float
-#        Significance level in [0,1].
-#    """
-#    Ht1 = []            # H at step "t1"
-#    Ht2 = []            # H at step "t2"
-#    for h in H:
-#        for i in range(len(h)-1):
-#            Ht1.append([h[i]])
-#            Ht2.append(h[i+1])
-#    states = np.unique(H)
-#    N = len(states)
-#    tran_matrix = np.zeros((N, N))
-#    for i in range(N):
-#        # Predict which states follow states[i].
-#        follow = CP.predict_labelled(states[i], Ht1, Ht2, e, ncm, **ncm_args)
-#        tran_matrix[i, follow] = 1.
-#
-#    return tran_matrix
-
-
-def sequences_to_examples(X, H):
-    """Transforms observed/hidden sequences to a training set
-    of examples.
-
-    This function accepts a list of observed sequences and
-    a list of the respective hidden sequences.
-    It returns two lists, Xt, Ht; the first one contains
-    observed elements, and the second one contains the
-    corresponding hidden states.
-
-    Parameters
-    ----------
-    X : numpy array
-        Array of sequences (arrays).
-    H : numpy array
-        Two dimensional array. Each row is an hidden sequence.
-    """
-    return X.flatten().reshape(-1, 1), H.flatten()
-
 def cp_hmm_candidates(xn, X, H, e, ncm, smooth=True):
     """Uses CP-HMM to predict, for each element of the observed sequence, a
     list of candidate states.  Thanks to CP's validity guarantee, the true
@@ -202,31 +137,17 @@ def cp_hmm_candidates(xn, X, H, e, ncm, smooth=True):
         Otherwise, standard CP is used, guaranteeing error smaller or
         equal to e.
     """
-    Xt, Ht = sequences_to_examples(X, H)
+    # Flatten sequences
+    X = X.flatten().reshape(-1, 1)
+    H = H.flatten()
     # For each element of the observed sequence xn
     # determine a set of candidate states.
     cp = TcpClassifier(ncm, smoothing=smooth)
     hn_candidates = []
     for x in xn:
-        cp.fit(Xt, Ht)
+        cp.fit(X, H)
         candidates_bool = cp.predict(x.reshape(-1, 1), e)[0]
         candidates = cp.classes[candidates_bool]
         hn_candidates.append(candidates)
 
     return hn_candidates
-
-def cp_hmm_pvalues(xn, hn, X, H, ncm, smooth=True):
-    """Returns the p-values for the observed sequence given
-    its correct hidden sequence.
-
-    """
-    cp = CP(ncm, smooth)
-    Xt, Ht = sequences_to_examples(X, H)
-    Xt = np.array(Xt)
-    Ht = np.array(Ht)
-    pvalues = []
-    for j in range(len(xn)):
-        p = cp.calculate_pvalue(xn[j], Xt[Ht==hn[j],:], ncm)
-        pvalues.append(p)
-
-    return pvalues
