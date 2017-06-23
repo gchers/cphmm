@@ -4,7 +4,19 @@ Python implementation of Conformal Prediction for Hidden Markov Models (CP-HMM) 
 
 ## Installation
 
+In your chosen virtualenv (otherwise you're recommended to add "--user" as
+an argument to setup.py, for a local installation):
+```
+pip install -r requirements.txt
+python setup.py install
+```
+
 ## Basic usage
+
+cphmm makes use of _nonconformist_ for Conformal Prediction.
+Refer to [https://github.com/donlnz/nonconformist](the original manual)
+for details about nonconformity measures.
+
 
 ```
 from cphmm import CPHMM
@@ -15,6 +27,7 @@ X = []
 Y = []
 lengths = []
 x = []
+y = []
 significance = 0.2
 
 # Define a k-NN nonconformity measure
@@ -27,6 +40,14 @@ cphmm.fit(X, Y, lengths)
 predicted = cphmm.predict(x, significance)
 ```
 
+The prediction is a list of candidate sequences (tuples).
+The probability that the correct hidden sequence (y) is not in *predicted*
+is exactly *significance*, thanks to the validity guarantee.
+
+## Known limitations
+
+Only Transductive Conformal Prediction (CP) is implemented.
+Inductive CP may be supported in the future.
 
 
 ## References
