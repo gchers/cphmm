@@ -6,8 +6,6 @@ from sklearn.base import BaseEstimator
 from nonconformist.nc import BaseScorer
 from nonconformist.cp import TcpClassifier
 
-import ml_train
-
 
 class CPHMM(BaseEstimator):
 
@@ -56,11 +54,11 @@ class CPHMM(BaseEstimator):
 
         # Initial and transition probabilities.
         if not init_prob:
-            ip = ml_train.estimate_initial_prob(Y)
+            ip = self._estimate_initial_prob(Y)
             init_prob = dict(zip(range(len(ip)), ip))
 
         if not tran_prob:
-            tp = ml_train.estimate_transition_prob(Y)
+            tp = self._estimate_transition_prob(Y)
             # Convert transmission probabilities into dictionary.
             tran_prob = {}
             for i in range(len(tp)):
@@ -159,3 +157,58 @@ class CPHMM(BaseEstimator):
             y_candidates.append(candidates)
 
         return y_candidates
+
+    def _estimate_initial_prob(self, H):
+        """Accepts a list of sequences. Each sequence
+        is a list of floats.
+        Returns an frequentist estimate of the initial
+        probabilities over the observed hidden states.
+        Assumes that the hidden states are specified by
+        sequential numbers starting from 0 (with no
+        missing numbers).
+        """
+        if len(H) == 0:
+            return []
+
+        H_n = len(np.unique(H))
+        ip = np.array([0.0]*H_n)
+
+        for h in H:
+            ip[h[0]] += 1
+
+        return ip/len(H)
+
+    def _estimate_transition_prob(self, H):
+        """Accepts a list of sequences. Each sequence
+        is a list of ints.
+        Returns an frequentist estimate of the transition
+        probabilities over the observed hidden states.
+        Assumes that the hidden states are specified by
+        sequential numbers starting from 0 (with no
+        missing numbers).
+        H_n is the number of states.
+        The return value is a numpy matrix in the form:
+
+            P(h_1 -> h_1), P(h_2 -> h_1), ...
+            P(h_2 -> h_1), p(h_2 -> h_2), ...
+            ...
+
+        where P(h_i -> h_j) indicates the transition
+        probability from state h_i to state h_j.
+        """
+        if len(H) == 0:
+            return []
+
+        H_n = len(np.unique(H))
+        tp = np.zeros((H_n, H_n))
+
+        for h in H:
+            for i in range(H_n-1):
+                tp[h[i],h[i+1]] += 1
+
+        for i in range(H_n):
+            if sum(tp[i,:]) == 0:
+                tp[i,:] = 1.0
+            tp[i,:] /= sum(tp[i,:])
+
+        return tp
