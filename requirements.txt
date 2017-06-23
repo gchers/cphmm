@@ -1,0 +1,4 @@
+hmmlearn==0.2.0
+nonconformist==2.1.0
+numpy==1.12.1
+scikit-learn==0.18.1
