@@ -61,16 +61,10 @@ class CPHMM(BaseEstimator):
 
         # Initial and transition probabilities.
         if not init_prob:
-            ip = self._estimate_initial_prob(Y, lengths)
-            init_prob = dict(zip(range(len(ip)), ip))
+            init_prob = self._estimate_initial_prob(Y, lengths)
 
         if not tran_prob:
-            tp = self._estimate_transition_prob(Y, lengths)
-            # Convert transmission probabilities into dictionary.
-            tran_prob = {}
-            for i in range(len(tp)):
-                for j in range(len(tp[0])):
-                    tran_prob[(i,j)] = tp[i][j]
+            tran_prob = self._estimate_transition_prob(Y, lengths)
     
         self.init_prob = init_prob
         self.tran_prob = tran_prob
@@ -185,20 +179,16 @@ class CPHMM(BaseEstimator):
         for i, j in iter_from_X_lengths(Y, lengths):
             ip[Y[i]] += 1
 
-        return ip/sum(ip)
+        ip /= sum(ip)
+        # To dictionary
+        ip = dict(zip(range(len(ip)), ip))
+
+        return ip
 
     def _estimate_transition_prob(self, Y, lengths):
         """Returns an frequentist estimate of the transition probabilities over
         the observed hidden states.  Assumes that the hidden states are
-        specified by sequential numbers 0, 1, ...
-        The return value is a numpy matrix tp(i,j) in the form:
-
-            P(h_1 -> h_1), P(h_2 -> h_1), ...
-            P(h_2 -> h_1), p(h_2 -> h_2), ...
-            ...
-
-        where P(h_i -> h_j) indicates the transition probability from state h_i
-        to state h_j.
+        specified by sequential numbers 0, 1, ... .
 
         Parameters
         ----------
@@ -222,4 +212,10 @@ class CPHMM(BaseEstimator):
                 tp[y,:] = 1.0
             tp[y,:] /= sum(tp[y,:])
 
-        return tp
+        # To dictionary
+        tran_prob = {}
+        for i in range(len(tp)):
+            for j in range(len(tp[0])):
+                tran_prob[(i,j)] = tp[i][j]
+
+        return tran_prob
