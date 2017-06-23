@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.base import BaseEstimator
 from nonconformist.nc import BaseScorer
 from nonconformist.cp import TcpClassifier
+from hmmlearn.utils import iter_from_X_lengths
 
 
 class CPHMM(BaseEstimator):
@@ -25,15 +26,18 @@ class CPHMM(BaseEstimator):
         self.ncm = ncm
         self.smooth = smooth
 
-    def fit(self, X, Y, init_prob=None, tran_prob=None):
+    def fit(self, X, Y, lengths=None, init_prob=None, tran_prob=None):
         """Fits the model on observables X and respective hidden sequences Y.
 
         Parameters
         ----------
-        X : numpy array
-            Two dimensional array. Each row is an observed sequence.
-        Y : numpy array
-            Two dimensional array. Each row is a hidden sequence.
+        X : numpy array (n_samples, n_features)
+            Individual observations.
+        Y : numpy array (n_samples,)
+            Individual observations of hidden states.
+        lengths : list of integer
+            Lengths of sequences in X and Y. If None, X and Y are assumed to
+            be a single sequence. The sum of lengths should be n_samples.
         init_prob : dict (Default: None)
             The item corresponding to the i-th key is the
             probability of the hidden process to start in the
@@ -48,17 +52,20 @@ class CPHMM(BaseEstimator):
         """
         self.train_x = X
         self.train_y = Y
+        self.states = np.unique(Y)
+        if lengths is None:
+            lengths = [len(Y)]
 
         # CP model
         self.cp = TcpClassifier(self.ncm, smoothing=self.smooth)
 
         # Initial and transition probabilities.
         if not init_prob:
-            ip = self._estimate_initial_prob(Y)
+            ip = self._estimate_initial_prob(Y, lengths)
             init_prob = dict(zip(range(len(ip)), ip))
 
         if not tran_prob:
-            tp = self._estimate_transition_prob(Y)
+            tp = self._estimate_transition_prob(Y, lengths)
             # Convert transmission probabilities into dictionary.
             tran_prob = {}
             for i in range(len(tp)):
@@ -158,57 +165,61 @@ class CPHMM(BaseEstimator):
 
         return y_candidates
 
-    def _estimate_initial_prob(self, H):
-        """Accepts a list of sequences. Each sequence
-        is a list of floats.
-        Returns an frequentist estimate of the initial
-        probabilities over the observed hidden states.
-        Assumes that the hidden states are specified by
-        sequential numbers starting from 0 (with no
-        missing numbers).
+    def _estimate_initial_prob(self, Y, lengths):
+        """Returns an frequentist estimate of the initial probabilities over
+        the observed hidden states.  Assumes that the hidden states are
+        specified by sequential numbers 0, 1, ...  numbers).
+
+        Parameters
+        ----------
+        Y : numpy array (n_samples,)
+            Individual observations of hidden states.
+        lengths : list of integer
+            Lengths of sequences in X and Y. If None, X and Y are assumed to
+            be a single sequence. The sum of lengths should be n_samples.
         """
-        if len(H) == 0:
+        if not len(Y):
             return []
 
-        H_n = len(np.unique(H))
-        ip = np.array([0.0]*H_n)
+        ip = np.array([.0] * len(self.states))
+        for i, j in iter_from_X_lengths(Y, lengths):
+            ip[Y[i]] += 1
 
-        for h in H:
-            ip[h[0]] += 1
+        return ip/sum(ip)
 
-        return ip/len(H)
-
-    def _estimate_transition_prob(self, H):
-        """Accepts a list of sequences. Each sequence
-        is a list of ints.
-        Returns an frequentist estimate of the transition
-        probabilities over the observed hidden states.
-        Assumes that the hidden states are specified by
-        sequential numbers starting from 0 (with no
-        missing numbers).
-        H_n is the number of states.
-        The return value is a numpy matrix in the form:
+    def _estimate_transition_prob(self, Y, lengths):
+        """Returns an frequentist estimate of the transition probabilities over
+        the observed hidden states.  Assumes that the hidden states are
+        specified by sequential numbers 0, 1, ...
+        The return value is a numpy matrix tp(i,j) in the form:
 
             P(h_1 -> h_1), P(h_2 -> h_1), ...
             P(h_2 -> h_1), p(h_2 -> h_2), ...
             ...
 
-        where P(h_i -> h_j) indicates the transition
-        probability from state h_i to state h_j.
+        where P(h_i -> h_j) indicates the transition probability from state h_i
+        to state h_j.
+
+        Parameters
+        ----------
+        Y : numpy array (n_samples,)
+            Individual observations of hidden states.
+        lengths : list of integer
+            Lengths of sequences in X and Y. If None, X and Y are assumed to
+            be a single sequence. The sum of lengths should be n_samples.
         """
-        if len(H) == 0:
-            return []
+        if not len(Y):
+            return np.empty()
 
-        H_n = len(np.unique(H))
-        tp = np.zeros((H_n, H_n))
+        tp = np.zeros((len(self.states), len(self.states)))
+        for i, j in iter_from_X_lengths(Y, lengths):
+            for k in range(i, j-1):
+                tp[Y[k], Y[k+1]] += 1
 
-        for h in H:
-            for i in range(H_n-1):
-                tp[h[i],h[i+1]] += 1
-
-        for i in range(H_n):
-            if sum(tp[i,:]) == 0:
-                tp[i,:] = 1.0
-            tp[i,:] /= sum(tp[i,:])
+        # Missing values, normalise
+        for y in self.states:
+            if sum(tp[y,:]) == 0:
+                tp[y,:] = 1.0
+            tp[y,:] /= sum(tp[y,:])
 
         return tp
