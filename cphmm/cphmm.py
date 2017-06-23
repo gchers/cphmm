@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+# Implementation of Conformal Prediction for Hidden Markov models (CP-HMM)
+# (Cherubin and Nouretdinov, 2016).
+#
+# author: Giovanni Cherubin
 import sys
 import itertools
 import numpy as np
