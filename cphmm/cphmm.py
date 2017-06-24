@@ -15,19 +15,22 @@ from hmmlearn.utils import iter_from_X_lengths
 class CPHMM(BaseEstimator):
 
 
-    def __init__(self, ncm, smooth=True):
+    def __init__(self, ncm, n_states, smooth=True):
         """Initialise a CP-HMM model.
 
         Parameters
         ----------
         ncm : nonconformist.BaseScorer
             Nonconformity measure to use.
+        n_states : int
+            Number of hidden states.
         smooth : bool
             If True, smooth CP is used, which achieves exact validity.
             Otherwise, standard CP is used, guaranteeing error smaller or
             equal to the significance level.
         """
         self.ncm = ncm
+        self.n_states = n_states
         self.smooth = smooth
 
     def fit(self, X, Y, lengths=None, init_prob=None, tran_prob=None):
@@ -56,7 +59,6 @@ class CPHMM(BaseEstimator):
         """
         self.train_x = X
         self.train_y = Y
-        self.states = np.unique(Y)
         if lengths is None:
             lengths = [len(Y)]
 
@@ -179,7 +181,7 @@ class CPHMM(BaseEstimator):
         if not len(Y):
             return []
 
-        ip = np.array([.0] * len(self.states))
+        ip = np.array([.0] * self.n_states)
         for i, j in iter_from_X_lengths(Y, lengths):
             ip[Y[i]] += 1
 
@@ -205,13 +207,15 @@ class CPHMM(BaseEstimator):
         if not len(Y):
             return np.empty()
 
-        tp = np.zeros((len(self.states), len(self.states)))
+        tp = np.zeros((self.n_states, self.n_states))
         for i, j in iter_from_X_lengths(Y, lengths):
             for k in range(i, j-1):
                 tp[Y[k], Y[k+1]] += 1
 
         # Missing values, normalise
-        for y in self.states:
+        # NOTE: here is made the assumption that states are integers
+        # 0, 1, ..., self.n_states-1.
+        for y in range(self.n_states):
             if sum(tp[y,:]) == 0:
                 tp[y,:] = 1.0
             tp[y,:] /= sum(tp[y,:])
