@@ -19,7 +19,7 @@ for details about nonconformity measures.
 
 
 ```
-from cphmm import CPHMM
+from cphmm.cphmm import CPHMM
 from sklearn.neighbors import KNeighborsClassifier
 from nonconformist.nc import ClassifierNc, ClassifierAdapter
 
