@@ -129,7 +129,7 @@ class CPHMM(BaseEstimator):
         paths = list(itertools.product(*candidates))
         scores = []
         for p in paths:
-            p = map(int, p)         # So we can use them as indexes
+            p = list(map(int, p))         # So we can use them as indexes
             s = init_prob[p[0]]
             for i in range(len(p)-1):
                 s *= trans_prob[(p[i],p[i+1])]
@@ -187,7 +187,7 @@ class CPHMM(BaseEstimator):
 
         ip /= sum(ip)
         # To dictionary
-        ip = dict(zip(range(len(ip)), ip))
+        ip = dict(list(zip(list(range(len(ip))), ip)))
 
         return ip
 
